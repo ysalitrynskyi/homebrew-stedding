@@ -1,0 +1,34 @@
+# Keeps Casks/stedding.rb on the latest release: reads the release GitHub marks as latest,
+# takes the DMG's checksum from the .sha256 file the release carries, and commits the new
+# version and checksum when they differ. Every six hours, and by hand.
+name: Bump
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read the latest release
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh api repos/ysalitrynskyi/stedding-browser/releases/latest --jq .tag_name)
+          version=${tag#v}
+          sha=$(curl -fsSL "https://github.com/ysalitrynskyi/stedding-browser/releases/download/${tag}/Stedding-${version}-arm64.dmg.sha256" | cut -d' ' -f1)
+          echo "$sha" | grep -Eq '^[0-9a-f]{64}$' || { echo "no checksum for $tag"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+      - name: Update the cask
+        run: |
+          sed -i -E "s/^  version \".*\"/  version \"${{ steps.latest.outputs.version }}\"/; s/^  sha256 \".*\"/  sha256 \"${{ steps.latest.outputs.sha }}\"/" Casks/stedding.rb
+          if git diff --quiet; then echo "already at ${{ steps.latest.outputs.version }}"; exit 0; fi
+          git config user.name "Yevhen Salitrynskyi"
+          git config user.email "ysalitrynskyi@gmail.com"
+          git commit -am "stedding ${{ steps.latest.outputs.version }}"
+          git push
