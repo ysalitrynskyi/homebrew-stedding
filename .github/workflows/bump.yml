@@ -1,6 +1,9 @@
 # Keeps Casks/stedding.rb on the latest release: reads the release GitHub marks as latest,
 # takes the DMG's checksum from the .sha256 file the release carries, and commits the new
-# version and checksum when they differ. Every six hours, and by hand.
+# version and checksum when they differ. Every six hours, by hand, and from the browser
+# repository's tooling/publish-release once the Mac image is published. A release the
+# Windows build created first has no Mac image yet: that run changes nothing and passes,
+# and the next one after the image is uploaded takes it.
 name: Bump
 on:
   schedule:
@@ -20,11 +23,16 @@ jobs:
         run: |
           tag=$(gh api repos/ysalitrynskyi/stedding-browser/releases/latest --jq .tag_name)
           version=${tag#v}
-          sha=$(curl -fsSL "https://github.com/ysalitrynskyi/stedding-browser/releases/download/${tag}/Stedding-${version}-arm64.dmg.sha256" | cut -d' ' -f1)
-          echo "$sha" | grep -Eq '^[0-9a-f]{64}$' || { echo "no checksum for $tag"; exit 1; }
+          sha=$(curl -fsSL "https://github.com/ysalitrynskyi/stedding-browser/releases/download/${tag}/Stedding-${version}-arm64.dmg.sha256" | cut -d' ' -f1 || true)
+          if ! echo "$sha" | grep -Eq '^[0-9a-f]{64}$'; then
+            echo "no Mac image in $tag yet; the cask stays as it is"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - name: Update the cask
+        if: steps.latest.outputs.skip != '1'
         run: |
           sed -i -E "s/^  version \".*\"/  version \"${{ steps.latest.outputs.version }}\"/; s/^  sha256 \".*\"/  sha256 \"${{ steps.latest.outputs.sha }}\"/" Casks/stedding.rb
           if git diff --quiet; then echo "already at ${{ steps.latest.outputs.version }}"; exit 0; fi
