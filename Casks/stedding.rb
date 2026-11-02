@@ -1,6 +1,6 @@
 cask "stedding" do
-  version "0.4.0-beta.5"
-  sha256 "47daef429a8b2ef4c7a5695f86b0635235b00c026163ee6f5a478f11ab3f415f"
+  version "0.4.0-beta.6"
+  sha256 "bd7797ed87197aa3a7784a58a3a0b51a2f38c69b205dab74e969fbaf26b9bf5e"
 
   url "https://github.com/ysalitrynskyi/stedding-browser/releases/download/v#{version}/Stedding-#{version}-arm64.dmg"
   name "Stedding"
